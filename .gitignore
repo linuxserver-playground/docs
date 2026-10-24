@@ -1,0 +1,9 @@
+# Fetched from the hub at build time by scripts/fetch-image-pages.py
+docs/images/
+docs/deprecated_images/
+docs/images-by-category.md
+# Build output
+site/
+.cache
+__pycache__/
+.venv/

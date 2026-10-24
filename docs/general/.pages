@@ -1,0 +1,21 @@
+nav:
+    - containers-101.md
+    - running-our-containers.md
+    - docker-compose.md
+    - understanding-puid-and-pgid.md
+    - volumes.md
+    - updating-our-containers.md
+    - container-execution.md
+    - container-customization.md
+    - container-branding.md
+    - swag.md
+    - split-dns.md
+    - Other platforms:
+        - platform-stores.md
+        - podman-quadlet.md
+        - kubernetes.md
+        - lxc-proxmox.md
+    - Project:
+        - how-a-build-happens.md
+        - contributing-an-image.md
+        - how-to-get-support.md

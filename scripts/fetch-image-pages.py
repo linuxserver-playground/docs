@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+"""
+Fetch the generated image pages from the hub into docs/.
+
+The hub (https://linuxserver-playground.github.io/hub/) renders one mkdocs page per image from its
+image.yml and publishes them, together with images-by-category.md, under /stores/docs/ on its Pages site.
+This script downloads them at build time:
+
+    docs/images/docker-<name>.md           every current image
+    docs/deprecated_images/docker-<name>.md  every image whose manifest sets deprecation.status
+    docs/deprecated_images/index.md        the list of deprecated images (always written, so the nav entry exists)
+    docs/images-by-category.md             the hub's category index, links to deprecated pages rewritten
+
+The list of images, and which are deprecated, comes from /api/v1/images.deprecated.json (every image,
+deprecated included). With --local <hub checkout> the same files are read from out/stores/docs/ and
+dist/api/v1/ of a local hub checkout (run `python -m lsio_hub.build` and `python -m lsio_hub.generate --offline`
+there first); when dist/ is missing the deprecated set is parsed from images-by-category.md.
+
+Nothing here is hand-edited: the three paths above are in .gitignore. Exit code 1 if any page could not be
+fetched, so a broken hub fails the docs build instead of silently publishing an incomplete fleet.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shutil
+import sys
+import time
+import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+DEFAULT_HUB = "https://linuxserver-playground.github.io/hub"
+USER_AGENT = "linuxserver-docs-fetch (+https://github.com/linuxserver-playground/docs)"
+RETRIES = 4
+
+
+def fetch(url: str) -> bytes:
+    last: Exception | None = None
+    for attempt in range(RETRIES):
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(request, timeout=60) as response:
+                return response.read()
+        except urllib.error.HTTPError as error:
+            if error.code == 404:
+                raise
+            last = error
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            last = error
+        time.sleep(2**attempt)
+    raise RuntimeError(f"{url}: {last}")
+
+
+class RemoteSource:
+    def __init__(self, hub: str) -> None:
+        self.hub = hub.rstrip("/")
+
+    def images(self) -> dict[str, bool]:
+        payload = json.loads(fetch(f"{self.hub}/api/v1/images.deprecated.json"))
+        result: dict[str, bool] = {}
+        for images in payload["data"]["repositories"].values():
+            for image in images:
+                result[image["name"]] = bool(image.get("deprecated"))
+        return result
+
+    def page(self, name: str) -> str:
+        return fetch(f"{self.hub}/stores/docs/images/docker-{name}.md").decode("utf-8")
+
+    def category_index(self) -> str:
+        return fetch(f"{self.hub}/stores/docs/images-by-category.md").decode("utf-8")
+
+
+class LocalSource:
+    def __init__(self, checkout: Path) -> None:
+        self.docs = checkout / "out" / "stores" / "docs"
+        self.api = checkout / "dist" / "api" / "v1" / "images.deprecated.json"
+        if not self.docs.is_dir():
+            sys.exit(f"{self.docs}: not found; run `python -m lsio_hub.generate --offline` in the hub checkout")
+
+    def images(self) -> dict[str, bool]:
+        names = sorted(p.stem.removeprefix("docker-") for p in (self.docs / "images").glob("docker-*.md"))
+        deprecated: set[str] = set()
+        if self.api.is_file():
+            payload = json.loads(self.api.read_text(encoding="utf-8"))
+            for images in payload["data"]["repositories"].values():
+                deprecated.update(i["name"] for i in images if i.get("deprecated"))
+        else:
+            deprecated = deprecated_from_index(self.category_index())
+        return {name: name in deprecated for name in names}
+
+    def page(self, name: str) -> str:
+        return (self.docs / "images" / f"docker-{name}.md").read_text(encoding="utf-8")
+
+    def category_index(self) -> str:
+        return (self.docs / "images-by-category.md").read_text(encoding="utf-8")
+
+
+def deprecated_from_index(index: str) -> set[str]:
+    """Names under the `## Deprecated` heading of images-by-category.md."""
+    section = index.split("\n## Deprecated\n", 1)
+    if len(section) < 2:
+        return set()
+    body = section[1].split("\n## ", 1)[0]
+    return set(re.findall(r"\]\(images/docker-([^)]+)\.md\)", body))
+
+
+def rewrite_deprecated_links(index: str, deprecated: set[str]) -> str:
+    for name in deprecated:
+        index = index.replace(f"](images/docker-{name}.md)", f"](deprecated_images/docker-{name}.md)")
+    return index
+
+
+def deprecated_index(pages: dict[str, str]) -> str:
+    lines = [
+        "---",
+        "title: Deprecated images",
+        "---",
+        "<!-- Generated by scripts/fetch-image-pages.py from the hub. Do not edit. -->",
+        "# Deprecated images",
+        "",
+        "These images are no longer built or supported. Their pages are kept for anyone still running them; the",
+        "deprecation notice at the top of each page says why and, where there is one, what to use instead. See the",
+        "[support policy](../misc/support-policy.md).",
+        "",
+    ]
+    if not pages:
+        lines += ["No image is deprecated at the moment.", ""]
+    for name in sorted(pages):
+        title = re.search(r"^title:\s*(.+)$", pages[name], re.MULTILINE)
+        lines.append(f"- [{title.group(1).strip() if title else name}](docker-{name}.md)")
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+def reset(directory: Path) -> None:
+    if directory.exists():
+        shutil.rmtree(directory)
+    directory.mkdir(parents=True)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--hub", default=DEFAULT_HUB, help=f"hub Pages site (default {DEFAULT_HUB})")
+    parser.add_argument("--local", type=Path, metavar="HUB_CHECKOUT", help="read a local hub checkout instead")
+    parser.add_argument("--docs-dir", type=Path, default=Path("docs"), help="mkdocs docs_dir (default docs)")
+    parser.add_argument("--jobs", type=int, default=8, help="parallel downloads (default 8)")
+    args = parser.parse_args()
+
+    source = LocalSource(args.local) if args.local else RemoteSource(args.hub)
+    images = source.images()
+    if not images:
+        print("the hub lists no images", file=sys.stderr)
+        return 1
+
+    failures: list[str] = []
+
+    def load(name: str) -> tuple[str, str | None]:
+        try:
+            return name, source.page(name)
+        except Exception as error:  # noqa: BLE001 - reported below, the build fails
+            failures.append(f"docker-{name}.md: {error}")
+            return name, None
+
+    with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+        pages = {name: page for name, page in pool.map(load, sorted(images)) if page is not None}
+    try:
+        index = source.category_index()
+    except Exception as error:  # noqa: BLE001
+        failures.append(f"images-by-category.md: {error}")
+        index = ""
+
+    if failures:
+        print("\n".join(failures), file=sys.stderr)
+        return 1
+
+    images_dir = args.docs_dir / "images"
+    deprecated_dir = args.docs_dir / "deprecated_images"
+    reset(images_dir)
+    reset(deprecated_dir)
+    deprecated = {name for name, flag in images.items() if flag}
+    for name, page in pages.items():
+        target = deprecated_dir if name in deprecated else images_dir
+        (target / f"docker-{name}.md").write_text(page, encoding="utf-8")
+    (deprecated_dir / "index.md").write_text(
+        deprecated_index({n: p for n, p in pages.items() if n in deprecated}), encoding="utf-8"
+    )
+    (args.docs_dir / "images-by-category.md").write_text(rewrite_deprecated_links(index, deprecated), encoding="utf-8")
+    print(f"{len(pages) - len(deprecated)} image pages, {len(deprecated)} deprecated, from {args.local or args.hub}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

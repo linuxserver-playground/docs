@@ -1,0 +1,160 @@
+site_name: LinuxServer.io
+site_url: https://linuxserver-playground.github.io/docs/
+site_author: LinuxServer.io
+site_description: Welcome to the home of the LinuxServer.io documentation!
+repo_name: linuxserver-playground/docs
+repo_url: https://github.com/linuxserver-playground/docs
+copyright: LinuxServer.io
+validation:
+  anchors: warn
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+theme:
+  name: material
+  custom_dir: overrides
+  font: false
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.code.copy
+    - navigation.footer
+    - navigation.tabs
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  favicon: assets/favicon.ico
+  logo: assets/mark.svg
+extra:
+  # Shared shell with the www site (linuxserver-playground/site): header links, Donate button, footer columns.
+  # Links into this site are absolute under the Pages base path, /docs/.
+  lsio:
+    site_url: https://linuxserver-playground.github.io/site/
+    donate: https://www.linuxserver.io/donate/
+    blurb: Volunteers building and maintaining the largest collection of community Docker images. Free and open source, always.
+    nav:
+      - label: Images
+        url: https://linuxserver-playground.github.io/site/images/
+      - label: Blog
+        url: https://linuxserver-playground.github.io/site/blog/
+      - label: Docs
+        url: /docs/
+        current: true
+      - label: Support
+        url: https://linuxserver-playground.github.io/site/support/
+      - label: About
+        url: https://linuxserver-playground.github.io/site/about/
+    footer:
+      - title: Fleet
+        links:
+          - { label: All images, url: https://linuxserver-playground.github.io/site/images/ }
+          - { label: Images by category, url: /docs/images-by-category/ }
+          - { label: Hub API, url: https://linuxserver-playground.github.io/hub/, external: true }
+          - { label: Build status, url: https://ci.thelamer.duckdns.org:8443/, external: true }
+          - { label: Build reports, url: https://linuxserver-playground.github.io/hub/builds/, external: true }
+      - title: Learn
+        links:
+          - { label: Documentation, url: /docs/ }
+          - { label: How a build happens, url: /docs/general/how-a-build-happens/ }
+          - { label: Contributing an image, url: /docs/general/contributing-an-image/ }
+          - { label: FAQ, url: /docs/FAQ/ }
+          - { label: Blog, url: https://linuxserver-playground.github.io/site/blog/ }
+      - title: Community
+        links:
+          - { label: Support, url: https://linuxserver-playground.github.io/site/support/ }
+          - { label: Discord, url: https://linuxserver.io/discord, external: true }
+          - { label: Discussions, url: https://github.com/orgs/linuxserver-playground/discussions, external: true }
+          - { label: GitHub, url: https://github.com/linuxserver-playground, external: true }
+      - title: Project
+        links:
+          - { label: About, url: https://linuxserver-playground.github.io/site/about/ }
+          - { label: Conventions, url: https://github.com/linuxserver-playground/builder/blob/main/CONVENTIONS.md, external: true }
+          - { label: Donate, url: https://www.linuxserver.io/donate/ }
+          - { label: Open Collective, url: https://opencollective.com/linuxserver, external: true }
+  social:
+    - icon: fontawesome/solid/otter
+      link: https://linuxserver.io
+    - icon: fontawesome/brands/discord
+      link: https://linuxserver.io/discord
+    - icon: fontawesome/brands/discourse
+      link: https://discourse.linuxserver.io
+    - icon: fontawesome/brands/github
+      link: https://github.com/linuxserver-playground
+    - icon: fontawesome/brands/mastodon
+      link: https://mastodon.linuxserver.io/@linuxserver
+    - icon: fontawesome/brands/bluesky
+      link: https://bsky.app/profile/linuxserver.io
+extra_css:
+  - stylesheets/extra.css
+extra_javascript:
+  - https://unpkg.com/tablesort@5.3.0/dist/tablesort.min.js
+  - javascripts/tablesort.js
+markdown_extensions:
+  - pymdownx.tabbed:
+      combine_header_slug: true
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.escapeall
+  - pymdownx.extra
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - tables
+  - toc:
+      permalink: true
+hooks:
+  - hooks/deprecated_redirects.py
+plugins:
+  - awesome-pages
+  - group:
+      enabled: !ENV CI
+      plugins:
+        - git-revision-date-localized:
+            enable_creation_date: true
+            exclude:
+              - deprecated_images/*
+              - images/*
+              - images-by-category.md
+        - minify:
+            minify_html: true
+  - render_swagger
+  - search
+  - tags:
+      tags: false
+  - redirects:
+      redirect_maps:
+        "faq.md": "FAQ.md"
+        general/awesome-lsio.md: images-by-category.md
+        misc/awesome-lsio.md: images-by-category.md
+        general/fleet.md: API.md
