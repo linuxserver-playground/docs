@@ -5,6 +5,8 @@ site_description: Welcome to the home of the LinuxServer.io documentation!
 repo_name: linuxserver-playground/docs
 repo_url: https://github.com/linuxserver-playground/docs
 copyright: LinuxServer.io
+exclude_docs: |
+  requirements.txt
 validation:
   anchors: warn
   omitted_files: warn

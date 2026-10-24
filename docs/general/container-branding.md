@@ -18,6 +18,6 @@ Hopefully this makes it simpler for everyone to manage the branding of your imag
 
 !!! note "`LSIO_FIRST_PARTY`"
 
-    Our own application images are marked as first party with the environment variable `LSIO_FIRST_PARTY=true`. It is not written in any Dockerfile: the [shared build workflow](how-a-build-happens.md#build-and-test-per-architecture) injects `ENV LSIO_FIRST_PARTY=true` after `FROM` when it builds a non-base image. A fork that builds with its own pipeline, or with a plain `docker build`, does not get it, so the base image will not overwrite your branding. If you do copy our workflow, or build an image that has the variable set, set `ENV LSIO_FIRST_PARTY=false` in your Dockerfile to keep your own branding.
+    Our own application images are marked as first party with the environment variable `LSIO_FIRST_PARTY=true`. It is not written in any Dockerfile: the [shared build workflow](how-a-build-happens.md#3-build-and-test-per-architecture) injects `ENV LSIO_FIRST_PARTY=true` after `FROM` when it builds a non-base image. A fork that builds with its own pipeline, or with a plain `docker build`, does not get it, so the base image will not overwrite your branding. If you do copy our workflow, or build an image that has the variable set, set `ENV LSIO_FIRST_PARTY=false` in your Dockerfile to keep your own branding.
 
 A final note: if you've previously overridden the `init-adduser` run file to do custom branding, we recommend switching to the above approach so that you don't miss out on any future changes to that init step.
